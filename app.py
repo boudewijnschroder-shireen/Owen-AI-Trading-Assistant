@@ -1,173 +1,100 @@
 import streamlit as st
 import yfinance as yf
+import requests
 import pandas as pd
-import numpy as np
 
-# Konfigurasi Halaman Web
-st.set_page_config(page_title="Owen AI Trading Assistant", page_icon="📈", layout="wide")
+# Konfigurasi Halaman Streamlit
+st.set_page_config(page_title="Owen AI Trading Assistant", layout="wide")
 
-st.title("📈 Owen AI Trading Assistant & Portfolio Tracker")
-st.markdown("Sistem analisis teknikal otomatis, deteksi pola harga cerdas, manajemen risiko, dan pelacakan portofolio real-time.")
+st.title("🤖 Owen AI Trading Assistant - Crypto Edition")
+st.markdown("Sistem pemantau pasar kripto cerdas dengan integrasi sinyal Telegram & manajemen risiko 5%.")
 
-# Sidebar untuk Pengaturan Pengguna
-st.sidebar.header("⚙️ Pengaturan Risiko")
-modal_awal = st.sidebar.number_input("Modal Portofolio (Rp)", value=200000, step=50000)
-risiko_persen = st.sidebar.slider("Batas Risiko per Transaksi (%)", min_value=0.5, max_value=5.0, value=1.0, step=0.5)
+# --- SIDEBAR: KONTROL BOT & PARAMETER ---
+st.sidebar.header("⚙️ Pengaturan Bot & Telegram")
+telegram_token = st.sidebar.text_input("Telegram Bot Token", type="password")
+chat_id = st.sidebar.text_input("Telegram Chat ID")
 
-# Daftar Watchlist Saham Indonesia
-watchlist = ["BBCA.JK", "BBRI.JK", "ASII.JK", "TLKM.JK"]
+st.sidebar.header("📊 Parameter Trading & Batasan")
+crypto_symbol = st.sidebar.selectbox("Pilih Aset Kripto", ["BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD"])
+target_pct = st.sidebar.slider("Target Profit & Stop Loss (%)", min_value=1.0, max_value=10.0, value=5.0, step=0.5)
 
-st.markdown("---")
-st.subheader("🔍 Pindai Sinyal Pasar, Deteksi Pola & Analisis Sentimen AI")
-
-if st.button("Jalankan Pemindaian & Analisis AI"):
-    for ticker in watchlist:
-        with st.container():
-            st.markdown(f"### Analisis Emiten: `{ticker}`")
-            try:
-                saham = yf.Ticker(ticker)
-                df = saham.history(period="6mo")
-                
-                if df.empty or len(df) < 50:
-                    st.warning(f"Data historis untuk {ticker} tidak mencukupi.")
-                    continue
-
-                # 1. Indikator Teknikal & Pola Harga
-                df['SMA_20'] = df['Close'].rolling(window=20).mean()
-                df['SMA_50'] = df['Close'].rolling(window=50).mean()
-
-                delta = df['Close'].diff()
-                gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-                loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-                rs = gain / loss
-                df['RSI'] = 100 - (100 / (1 + rs))
-
-                terbaru = df.iloc[-1]
-                sebelumnya = df.iloc[-2]
-                harga_sekarang = terbaru['Close']
-                sma_20 = terbaru['SMA_20']
-                sma_50 = terbaru['SMA_50']
-                rsi = terbaru['RSI']
-
-                # Deteksi Pola Teknikal Spesifik
-                pola_deteksi = []
-                # Golden Cross / Dead Cross Check
-                if sebelumnya['SMA_20'] <= sebelumnya['SMA_50'] and sma_20 > sma_50:
-                    pola_deteksi.append("✨ **Golden Cross Terdeteksi!** (MA 20 baru saja memotong ke atas MA 50 - Sinyal Bullish Kuat)")
-                elif sebelumnya['SMA_20'] >= sebelumnya['SMA_50'] and sma_20 < sma_50:
-                    pola_deteksi.append("⚠️ **Dead Cross Terdeteksi!** (MA 20 memotong ke bawah MA 50 - Sinyal Bearish)")
-                
-                if rsi < 30:
-                    pola_deteksi.append("📉 **Kondisi Extreme Oversold** (RSI di bawah 30, potensi pantulan harga / *rebound*)")
-                elif rsi > 70:
-                    pola_deteksi.append("📈 **Kondisi Extreme Overbought** (RSI di atas 70, rawan koreksi)")
-
-                # 2. Analisis Sentimen Kilat Berbasis Momentum AI
-                if rsi > 55 and sma_20 > sma_50:
-                    sentimen_teks = "🟢 **Bullish (Positif)** - Momentum penguatan harga stabil didukung tren volume."
-                    skor_sentimen = "85 / 100 (Strong Bullish)"
-                elif rsi < 45 and sma_20 < sma_50:
-                    sentimen_teks = "🔴 **Bearish (Negatif)** - Tekanan jual mendominasi pasar."
-                    skor_sentimen = "25 / 100 (Strong Bearish)"
-                else:
-                    sentimen_teks = "🟡 **Neutral (Konsolidasi)** - Pasar sedang bergerak menyamping (sideways), tunggu arah breakout."
-                    skor_sentimen = "50 / 100 (Neutral)"
-
-                # Kolom Informasi Metrik
-                col1, col2, col3, col4 = st.columns(4)
-                col1.metric("Harga Terakhir", f"Rp {harga_sekarang:,.2f}")
-                col2.metric("SMA 20", f"Rp {sma_20:,.2f}")
-                col3.metric("SMA 50", f"Rp {sma_50:,.2f}")
-                col4.metric("RSI (14)", f"{rsi:.2f}")
-
-                # Tampilkan Hasil Analisis Sentimen & Pola
-                st.markdown(f"**🤖 Skor Sentimen AI:** {skor_sentimen} — {sentimen_teks}")
-                
-                if pola_deteksi:
-                    st.markdown("**🔍 Deteksi Pola Harga:**")
-                    for pola in pola_deteksi:
-                        st.markdown(f"- {pola}")
-
-                # Logika Keputusan Sinyal & Manajemen Risiko
-                if sma_20 > sma_50 and rsi < 45:
-                    st.success("🟢 **KEPUTUSAN: BELI (BUY)** - Tren utama bullish dan harga dalam zona diskon.")
-                    
-                    # Manajemen Risiko
-                    maks_risiko_rp = modal_awal * (risiko_persen / 100)
-                    stop_loss_harga = harga_sekarang * 0.95
-                    risiko_per_lembar = harga_sekarang - stop_loss_harga
-                    
-                    if risiko_per_lembar > 0:
-                        jumlah_saham = int(maks_risiko_rp / risiko_per_lembar)
-                        total_investasi = jumlah_saham * harga_sekarang
-
-                        st.info(f"""
-                        **Rencana Manajemen Risiko (PRO):**
-                        * **Batas Risiko:** {risiko_persen}% (Rp {maks_risiko_rp:,.2f})
-                        * **Harga Stop-Loss:** Rp {stop_loss_harga:,.2f} (-5%)
-                        * **Saran Alokasi Pembelian:** **{jumlah_saham:,} lembar** (Total Dana: Rp {total_investasi:,.2f})
-                        """)
-                elif sma_20 < sma_50 or rsi > 70:
-                    st.error("🔴 **KEPUTUSAN: JUAL (SELL)** - Tren melemah atau aset sudah jenuh beli (Overbought).")
-                else:
-                    st.warning("🟡 **KEPUTUSAN: TAHAN (HOLD)** - Pasar bergerak konsolidasi.")
-                
-                st.markdown("---")
-            except Exception as e:
-                st.error(f"Terjadi kesalahan saat memproses {ticker}: {e}")
-
-# Bagian Pelacakan Portofolio Web
-st.subheader("📊 Pelacakan Portofolio Nyata")
-st.markdown("Berikut adalah simulasi portofolio yang sedang Anda pantau:")
-
-portofolio_pengguna = [
-    {"ticker": "ASII.JK", "jumlah_lembar": 100, "harga_beli": 4750.00},
-    {"ticker": "TLKM.JK", "jumlah_lembar": 100, "harga_beli": 2600.00}
-]
-
-data_tabel = []
-total_nilai_aset = 0
-total_modal_awal = 0
-
-for item in portofolio_pengguna:
-    ticker = item['ticker']
-    jumlah = item['jumlah_lembar']
-    harga_beli = item['harga_beli']
-    
+# Fungsi untuk mengirim pesan Telegram
+def send_telegram_alert(token, chat_id, message):
+    if not token or not chat_id:
+        return False
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": message,
+        "parse_mode": "Markdown"
+    }
     try:
-        saham = yf.Ticker(ticker)
-        harga_sekarang = saham.history(period="1d")['Close'].iloc[-1]
-        
-        nilai_sekarang = jumlah * harga_sekarang
-        modal_awal_item = jumlah * harga_beli
-        profit_loss = nilai_sekarang - modal_awal_item
-        profit_loss_persen = (profit_loss / modal_awal_item) * 100 if modal_awal_item > 0 else 0
-        
-        total_nilai_aset += nilai_sekarang
-        total_modal_awal += modal_awal_item
-
-        status_pl = "PROFIT 🟢" if profit_loss >= 0 else "LOSS 🔴"
-
-        data_tabel.append({
-            "Emiten": ticker,
-            "Jumlah Lembar": jumlah,
-            "Harga Beli": f"Rp {harga_beli:,.2f}",
-            "Harga Sekarang": f"Rp {harga_sekarang:,.2f}",
-            "Total Nilai": f"Rp {nilai_sekarang:,.2f}",
-            "P/L (Rp)": f"Rp {profit_loss:,.2f}",
-            "P/L (%)": f"{profit_loss_persen:.2f}%",
-            "Status": status_pl
-        })
+        response = requests.post(url, json=payload)
+        return response.status_code == 200
     except Exception as e:
-        st.error(f"Gagal memuat portofolio {ticker}: {e}")
+        return False
 
-if data_tabel:
-    df_portofolio = pd.DataFrame(data_tabel)
-    st.dataframe(df_portofolio, use_container_width=True)
+# --- UTAMA: ANALISIS & SINYAL KRIPTO ---
+st.subheader(f"Monitoring Real-Time: {crypto_symbol}")
 
-    total_pl_portofolio = total_nilai_aset - total_modal_awal
-    
-    col_a, col_b, col_c = st.columns(3)
-    col_a.metric("Total Modal Awal", f"Rp {total_modal_awal:,.2f}")
-    col_b.metric("Total Nilai Aset", f"Rp {total_nilai_aset:,.2f}")
-    col_c.metric("Total Profit / Loss", f"Rp {total_pl_portofolio:,.2f}")
+# Tombol Analisis Otomatis
+if st.button("🔍 Jalankan Pemindaian & Analisis AI"):
+    with st.spinner("Memindai pergerakan pasar kripto dan indikator..."):
+        # Ambil data historis
+        data = yf.download(crypto_symbol, period="5d", interval="1h")
+        
+        if not data.empty:
+            current_price = float(data['Close'].iloc[-1].item())
+            prev_price = float(data['Close'].iloc[-2].item())
+            price_change = ((current_price - prev_price) / prev_price) * 100
+
+            # Hitung indikator sederhana (Moving Average 20 & 50 untuk deteksi tren)
+            data['MA20'] = data['Close'].rolling(window=20).mean()
+            data['MA50'] = data['Close'].rolling(window=50).mean()
+            
+            ma20_val = float(data['MA20'].iloc[-1].item())
+            ma50_val = float(data['MA50'].iloc[-1].item())
+
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Harga Terkini", f"${current_price:,.2f}", f"{price_change:.2f}%")
+            col2.metric("Target Profit (+%)", f"+{target_pct}%")
+            col3.metric("Batas Risiko (-%)", f"-{target_pct}%")
+
+            st.line_chart(data[['Close', 'MA20', 'MA50']])
+
+            # --- LOGIKA KEPUTUSAN AI & BATASAN 5% ---
+            st.markdown("### 🤖 Hasil Analisis AI & Sinyal Eksekusi")
+            
+            # Simulasi Evaluasi Berdasarkan Tren dan Batasan
+            if current_price > ma20_val and price_change > 0:
+                signal_type = "🟢 SINYAL BELI (BUY)"
+                signal_desc = f"Harga berada di atas rata-rata tren pendek dengan momentum positif. Potensi kenaikan menuju target profit **+{target_pct}%**."
+            elif current_price < ma20_val and price_change < 0:
+                signal_type = "🔴 SINYAL JUAL / HATI-HATI (SELL / CUT LOSS)"
+                signal_desc = f"Harga menembus di bawah rata-rata tren. Waspadai penurunan yang mendekati batas risiko **-{target_pct}%**."
+            else:
+                signal_type = "🟡 BERTAHAN (HOLD / WAIT)"
+                signal_desc = "Pasar bergerak mendatar (*konsolidasi*). Tunggu momentum breakout atau koreksi sehat."
+
+            st.markdown(f"**Status Sinyal:** {signal_type}")
+            st.write(signal_desc)
+
+            # Tombol Kirim Notifikasi Live ke Telegram
+            if st.button("📤 Kirim Sinyal Ini ke Telegram Sekarang"):
+                if telegram_token and chat_id:
+                    telegram_message = (
+                        f"🤖 *Owen AI Trading Alert*\n\n"
+                        f"📌 **Aset:** {crypto_symbol}\n"
+                        f"💰 **Harga Saat Ini:** ${current_price:,.2f} ({price_change:.2f}%)\n"
+                        f"📊 **Sinyal:** {signal_type}\n"
+                        f"⚙️ **Target / Batasan:** {target_pct}%\n\n"
+                        f"_{signal_desc}_"
+                    )
+                    if send_telegram_alert(telegram_token, chat_id, telegram_message):
+                        st.success("Pemberitahuan sinyal berhasil dikirim ke Telegram Anda!")
+                    else:
+                        st.error("Gagal mengirim Telegram. Periksa kembali Token Bot dan Chat ID Anda di sidebar.")
+                else:
+                    st.warning("Mohon isi Telegram Bot Token dan Chat ID terlebih dahulu di panel sebelah kiri.")
+        else:
+            st.error("Gagal memuat data pasar. Silakan coba beberapa saat lagi.")
