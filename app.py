@@ -44,6 +44,10 @@ if st.button("🔍 Jalankan Pemindaian & Analisis AI"):
         data = yf.download(crypto_symbol, period="5d", interval="1h")
         
         if not data.empty:
+            # Perataan MultiIndex kolom dari yfinance agar aman dibaca
+            if isinstance(data.columns, pd.MultiIndex):
+                data.columns = data.columns.get_level_values(0)
+
             current_price = float(data['Close'].iloc[-1].item())
             prev_price = float(data['Close'].iloc[-2].item())
             price_change = ((current_price - prev_price) / prev_price) * 100
@@ -60,12 +64,11 @@ if st.button("🔍 Jalankan Pemindaian & Analisis AI"):
             col2.metric("Target Profit (+%)", f"+{target_pct}%")
             col3.metric("Batas Risiko (-%)", f"-{target_pct}%")
 
-            st.line_chart(data[['Close', 'MA20', 'MA50']])
+            st.line_chart(data[['Close', 'MA20', 'MA50']].dropna())
 
             # --- LOGIKA KEPUTUSAN AI & BATASAN 5% ---
             st.markdown("### 🤖 Hasil Analisis AI & Sinyal Eksekusi")
             
-            # Simulasi Evaluasi Berdasarkan Tren dan Batasan
             if current_price > ma20_val and price_change > 0:
                 signal_type = "🟢 SINYAL BELI (BUY)"
                 signal_desc = f"Harga berada di atas rata-rata tren pendek dengan momentum positif. Potensi kenaikan menuju target profit **+{target_pct}%**."
