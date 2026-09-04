@@ -44,7 +44,7 @@ if st.sidebar.button("🧪 Tes Kirim Pesan ke Telegram"):
     if not telegram_token or not chat_id:
         st.sidebar.error("Token atau Chat ID masih kosong!")
     else:
-        pesan_tes = "Hallo bossku."
+        pesan_tes = "Hallo bossku. Pesan uji coba berhasil terkirim!"
         if send_telegram_alert(telegram_token, chat_id, pesan_tes):
             st.sidebar.success("Berhasil terkirim ke Telegram!")
         else:
@@ -77,7 +77,6 @@ if st.button("Jalankan Pemindaian Market") or live_mode:
             st.markdown(f"### Analisis Aset: `{ticker}`")
             try:
                 saham = yf.Ticker(ticker)
-                # Mengambil data intraday 1 hari / 6 bulan untuk analisis
                 df = saham.history(period="6mo")
                 
                 if df.empty or len(df) < 50:
